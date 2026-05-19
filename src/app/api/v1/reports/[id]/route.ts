@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { getServerSession } from 'next-auth/next'
 
 const getPrismaClient = async () => {
   const { PrismaClient } = await import('@prisma/client')
@@ -15,8 +16,21 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const session = await getServerSession()
+    if (!session?.user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+
     const prisma = await getPrismaClient()
     const { id } = await params
+
+    const user = await prisma.user.findUnique({
+      where: { email: session.user.email! },
+    })
+
+    if (!user) {
+      return NextResponse.json({ error: 'User not found' }, { status: 404 })
+    }
 
     const report = await prisma.report.findUnique({
       where: { id },
@@ -32,6 +46,13 @@ export async function GET(
       return NextResponse.json(
         { error: 'Report not found' },
         { status: 404 }
+      )
+    }
+
+    if (report.userId !== user.id) {
+      return NextResponse.json(
+        { error: 'Forbidden' },
+        { status: 403 }
       )
     }
 

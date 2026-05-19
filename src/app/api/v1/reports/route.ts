@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { getServerSession } from 'next-auth/next'
 import { googlePlacesService, type NearbyPOI } from '@/lib/services/google-places'
 import { scoringEngine, type ScoringInput } from '@/lib/services/scoring-engine'
 import { aiReportService } from '@/lib/services/ai-report'
@@ -18,6 +19,11 @@ const getPrismaClient = async () => {
 // POST /api/v1/reports - Create a new report
 export async function POST(request: NextRequest) {
   try {
+    const session = await getServerSession()
+    if (!session?.user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+
     const prisma = await getPrismaClient()
     const body = await request.json()
     
@@ -31,10 +37,19 @@ export async function POST(request: NextRequest) {
       )
     }
 
+    // Get user from email (NextAuth session doesn't always have ID)
+    const user = await prisma.user.findUnique({
+      where: { email: session.user.email! },
+    })
+
+    if (!user) {
+      return NextResponse.json({ error: 'User not found' }, { status: 404 })
+    }
+
     // Create report in database with initial status
     const report = await prisma.report.create({
       data: {
-        userId: 'user-123', // TODO: Get from auth session
+        userId: user.id,
         businessCategoryId: businessCategory,
         businessModel,
         location,
@@ -189,12 +204,24 @@ export async function POST(request: NextRequest) {
 // GET /api/v1/reports - List all reports for a user
 export async function GET(request: NextRequest) {
   try {
+    const session = await getServerSession()
+    if (!session?.user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+
     const prisma = await getPrismaClient()
-    // TODO: Get userId from auth session
-    const userId = 'user-123'
+    
+    // Get user from email
+    const user = await prisma.user.findUnique({
+      where: { email: session.user.email! },
+    })
+
+    if (!user) {
+      return NextResponse.json({ error: 'User not found' }, { status: 404 })
+    }
     
     const reports = await prisma.report.findMany({
-      where: { userId },
+      where: { userId: user.id },
       include: {
         scoreCard: true,
         pois: true,

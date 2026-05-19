@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { useSession, signOut } from 'next-auth/react'
 
 interface Report {
   id: string
@@ -20,13 +21,16 @@ interface Report {
 }
 
 export default function DashboardPage() {
+  const { data: session } = useSession()
   const [reports, setReports] = useState<Report[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
-    fetchReports()
-  }, [])
+    if (session) {
+      fetchReports()
+    }
+  }, [session])
 
   const fetchReports = async () => {
     try {
@@ -40,6 +44,10 @@ export default function DashboardPage() {
     } finally {
       setLoading(false)
     }
+  }
+
+  const handleSignOut = () => {
+    signOut({ callbackUrl: '/login' })
   }
 
   const getStatusColor = (status: string) => {
@@ -75,9 +83,10 @@ export default function DashboardPage() {
               <div className="flex items-center">
                 <span className="text-lg font-bold text-indigo-600">Nearby Report</span>
               </div>
-              <div className="flex items-center space-x-4">
+              <div className="flex items-center space-x-4 text-sm">
                 <a href="/dashboard" className="text-gray-600 hover:text-gray-900">Dashboard</a>
                 <a href="/reports/new" className="text-gray-600 hover:text-gray-900">Create Report</a>
+                <button onClick={handleSignOut} className="text-red-600 hover:text-red-700">Sign out</button>
               </div>
             </div>
           </div>
@@ -97,37 +106,6 @@ export default function DashboardPage() {
     )
   }
 
-  if (error) {
-    return (
-      <div className="min-h-screen bg-gray-50">
-        <nav className="bg-white border-b border-gray-200">
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-            <div className="flex justify-between h-16">
-              <div className="flex items-center">
-                <span className="text-lg font-bold text-indigo-600">Nearby Report</span>
-              </div>
-              <div className="flex items-center space-x-4">
-                <a href="/dashboard" className="text-gray-600 hover:text-gray-900">Dashboard</a>
-                <a href="/reports/new" className="text-gray-600 hover:text-gray-900">Create Report</a>
-              </div>
-            </div>
-          </div>
-        </nav>
-        <div className="max-w-7xl mx-auto py-12 px-4 sm:px-6 lg:px-8">
-          <div className="bg-white rounded-lg border border-gray-200 p-6 text-center">
-            <p className="text-red-600 mb-4">{error}</p>
-            <button
-              onClick={fetchReports}
-              className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700"
-            >
-              Retry
-            </button>
-          </div>
-        </div>
-      </div>
-    )
-  }
-
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Navigation */}
@@ -137,9 +115,20 @@ export default function DashboardPage() {
             <div className="flex items-center">
               <span className="text-lg font-bold text-indigo-600">Nearby Report</span>
             </div>
-            <div className="flex items-center space-x-4">
-              <a href="/dashboard" className="text-gray-600 hover:text-gray-900">Dashboard</a>
-              <a href="/reports/new" className="text-gray-600 hover:text-gray-900">Create Report</a>
+            <div className="flex items-center space-x-6">
+              <div className="flex items-center space-x-4 text-sm">
+                <a href="/dashboard" className="text-gray-900 font-medium">Dashboard</a>
+                <a href="/reports/new" className="text-gray-600 hover:text-gray-900">Create Report</a>
+              </div>
+              <div className="flex items-center pl-6 border-l border-gray-200 space-x-4">
+                <span className="text-sm text-gray-500">{session?.user?.name}</span>
+                <button
+                  onClick={handleSignOut}
+                  className="text-sm font-medium text-red-600 hover:text-red-700"
+                >
+                  Sign out
+                </button>
+              </div>
             </div>
           </div>
         </div>
@@ -150,11 +139,11 @@ export default function DashboardPage() {
         <div className="flex justify-between items-center mb-8">
           <div>
             <h1 className="text-3xl font-bold text-gray-900 mb-2">Your Reports</h1>
-            <p className="text-gray-600">Manage and analyze your location feasibility reports</p>
+            <p className="text-gray-600 text-lg">Manage and analyze your location feasibility reports</p>
           </div>
           <a
             href="/reports/new"
-            className="px-6 py-3 bg-indigo-600 text-white font-semibold rounded-lg hover:bg-indigo-700"
+            className="px-6 py-3 bg-indigo-600 text-white font-semibold rounded-lg hover:bg-indigo-700 shadow-sm"
           >
             Create New Report
           </a>

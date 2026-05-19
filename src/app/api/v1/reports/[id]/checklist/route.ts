@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { getServerSession } from 'next-auth/next'
 
 const getPrismaClient = async () => {
   const { PrismaClient } = await import('@prisma/client')
@@ -15,6 +16,11 @@ export async function PATCH(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const session = await getServerSession()
+    if (!session?.user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+
     const prisma = await getPrismaClient()
     const { id: reportId } = await params
     const body = await request.json()
@@ -27,7 +33,15 @@ export async function PATCH(
       )
     }
 
-    // Verify report exists
+    const user = await prisma.user.findUnique({
+      where: { email: session.user.email! },
+    })
+
+    if (!user) {
+      return NextResponse.json({ error: 'User not found' }, { status: 404 })
+    }
+
+    // Verify report exists and belongs to user
     const report = await prisma.report.findUnique({
       where: { id: reportId },
     })
@@ -36,6 +50,13 @@ export async function PATCH(
       return NextResponse.json(
         { error: 'Report not found' },
         { status: 404 }
+      )
+    }
+
+    if (report.userId !== user.id) {
+      return NextResponse.json(
+        { error: 'Forbidden' },
+        { status: 403 }
       )
     }
 

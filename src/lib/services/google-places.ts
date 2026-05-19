@@ -49,6 +49,38 @@ export class GooglePlacesService {
   }
 
   /**
+   * Autocomplete location search
+   */
+  async autocomplete(input: string): Promise<any[]> {
+    try {
+      const response = await fetch(
+        `${this.baseUrl}/places:searchText`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-Goog-Api-Key': this.apiKey,
+            'X-Goog-FieldMask': 'places.id,places.displayName,places.formattedAddress,places.location',
+          },
+          body: JSON.stringify({
+            textQuery: input,
+          }),
+        }
+      )
+
+      if (!response.ok) {
+        throw new Error(`Google Places API error: ${response.statusText}`)
+      }
+
+      const data = await response.json()
+      return data.places || []
+    } catch (error) {
+      console.error('Error in location autocomplete:', error)
+      return []
+    }
+  }
+
+  /**
    * Search for nearby places around a location
    */
   async searchNearbyPlaces(
