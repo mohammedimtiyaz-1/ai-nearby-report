@@ -1,10 +1,13 @@
 'use client'
 
 import { useState } from 'react'
+import { useRouter } from 'next/navigation'
 
 export default function NewReportPage() {
+  const router = useRouter()
   const [step, setStep] = useState(1)
   const [loading, setLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
   const [formData, setFormData] = useState({
     businessCategory: '',
     businessModel: '',
@@ -22,10 +25,39 @@ export default function NewReportPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setLoading(true)
-    // TODO: API call to create report
-    setTimeout(() => {
+    setError(null)
+
+    try {
+      const response = await fetch('/api/v1/reports', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          businessCategory: formData.businessCategory,
+          businessModel: formData.businessModel,
+          location: formData.location,
+          latitude: formData.latitude || 37.7749,
+          longitude: formData.longitude || -122.4194,
+          radius: formData.radius,
+          rent: formData.rent || undefined,
+          shopSize: formData.shopSize || undefined,
+          setupBudget: formData.setupBudget || undefined,
+          staffCost: formData.staffCost || undefined,
+          inventoryCost: formData.inventoryCost || undefined,
+        }),
+      })
+
+      if (!response.ok) {
+        const data = await response.json()
+        throw new Error(data.error || 'Failed to create report')
+      }
+
+      const report = await response.json()
+      router.push(`/reports/${report.id}`)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to create report')
+    } finally {
       setLoading(false)
-    }, 2000)
+    }
   }
 
   return (
@@ -81,6 +113,11 @@ export default function NewReportPage() {
           </div>
 
           <form onSubmit={handleSubmit}>
+            {error && (
+              <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg">
+                <p className="text-red-700 text-sm">{error}</p>
+              </div>
+            )}
             {/* Business Information */}
             <div className="mb-8">
               <h3 className="text-lg font-semibold text-gray-900 mb-4">Business Information</h3>

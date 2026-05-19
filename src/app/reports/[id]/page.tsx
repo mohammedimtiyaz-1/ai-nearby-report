@@ -65,60 +65,34 @@ export default function ReportDetailPage() {
   const fetchReport = async () => {
     try {
       setLoading(true)
-      // TODO: Implement actual API call to fetch report by ID
-      // const response = await fetch(`/api/v1/reports/${params.id}`)
-      // if (!response.ok) throw new Error('Report not found')
-      // const data = await response.json()
-      // setReport(data.report)
-      // setAiReport(data.aiReport)
+      const response = await fetch(`/api/v1/reports/${params.id}`)
+      if (!response.ok) {
+        if (response.status === 404) throw new Error('Report not found')
+        throw new Error('Failed to load report')
+      }
+      const data = await response.json()
+      setReport(data.report)
       
-      // Mock data for now
-      setReport({
-        id: params.id as string,
-        businessCategoryId: 'cafe',
-        businessModel: 'independent',
-        location: '123 Main Street, San Francisco, CA',
-        radius: 1000,
-        status: 'COMPLETED',
-        confidence: 72,
-        createdAt: new Date().toISOString(),
-        scoreCard: {
-          competitionScore: 65,
-          demandScore: 80,
-          accessibilityScore: 75,
-          areaFitScore: 70,
-          financialPressureScore: 60,
-          competitionReason: 'Moderate competition with 3 direct competitors',
-          demandReason: 'Strong demand indicators from nearby offices and schools',
-          accessibilityReason: 'Good accessibility with multiple transit options',
-          areaFitReason: 'Strong fit for cafe business in commercial area',
-          financialPressureReason: 'Moderate financial pressure - careful budgeting needed',
-        },
-        pois: [],
-        surveyChecklist: [
-          { id: '1', task: 'Visit at different times of day', completed: false },
-          { id: '2', task: 'Count pedestrian movement manually', completed: false },
-          { id: '3', task: 'Observe competitor crowd', completed: false },
-          { id: '4', task: 'Check parking availability', completed: false },
-          { id: '5', task: 'Check visibility from street', completed: false },
-        ],
-      })
-      
-      setAiReport({
-        executiveSummary: 'Based on the analysis of 123 Main Street, the cafe business shows promising potential with a confidence score of 72%. The location benefits from strong demand signals and moderate competition.',
-        opportunities: [
-          'Strong demand from nearby offices and schools',
-          'Good accessibility with multiple transit options',
-          'Moderate competition allows for differentiation',
-        ],
-        risks: [
-          'Moderate competition may impact market share',
-          'Financial pressure requires careful budgeting',
-          'Peak hour traffic could affect delivery logistics',
-        ],
-        recommendation: 'Proceed with cafe at 123 Main Street with recommended due diligence and competitive differentiation strategy.',
-        disclaimer: 'This analysis is based on available data and should be used as decision support only. Conduct additional on-site research before making final decisions.',
-      })
+      // If report has scoreCard, construct AI report from it
+      if (data.report.scoreCard) {
+        setAiReport({
+          executiveSummary: `Based on the analysis of ${data.report.location}, the ${data.report.businessCategoryId.replace('_', ' ')} business shows ${data.report.confidence > 50 ? 'promising' : 'challenging'} potential with a confidence score of ${data.report.confidence}%.`,
+          opportunities: [
+            data.report.scoreCard.demandReason,
+            data.report.scoreCard.competitionReason,
+            data.report.scoreCard.accessibilityReason,
+          ],
+          risks: [
+            data.report.scoreCard.financialPressureReason,
+            data.report.scoreCard.areaFitReason,
+            'Additional on-site research recommended before final decision.',
+          ],
+          recommendation: data.report.confidence > 60
+            ? `Proceed with ${data.report.businessCategoryId.replace('_', ' ')} at ${data.report.location} with recommended due diligence.`
+            : `Consider alternative locations or gather more data before proceeding with ${data.report.businessCategoryId.replace('_', ' ')} at ${data.report.location}.`,
+          disclaimer: 'This analysis is based on available data and should be used as decision support only. Conduct additional on-site research before making final decisions.',
+        })
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load report')
     } finally {
