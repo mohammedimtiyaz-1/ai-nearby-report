@@ -68,10 +68,12 @@ Market Context:
 Based on this data, which business among (Cafe, Pharmacy, Salon, Restaurant, Retail) has the highest feasibility?
 Consider where the competition is low relative to the general demand signals.
 
-Provide:
-1. Suggested Category: [Category Name]
-2. Confidence Score: [0-100]
-3. Analysis: [Detailed reasoning in 2-3 sentences]
+Return a JSON object with:
+{
+  "suggestedCategory": "category name",
+  "confidence": number (0-100),
+  "analysis": "2-3 sentences explaining why"
+}
 `
 
       const response = await this.openai.chat.completions.create({
@@ -79,27 +81,24 @@ Provide:
         messages: [
           {
             role: 'system',
-            content: 'You are a retail strategy consultant specializing in market gap analysis.',
+            content: 'You are a retail strategy consultant specializing in market gap analysis. Respond in JSON format.',
           },
           {
             role: 'user',
             content: prompt,
           },
         ],
+        response_format: { type: 'json_object' },
         temperature: 0.7,
       })
 
-      const content = response.choices[0]?.message?.content || ''
-      
-      // Simple parsing of AI response
-      const suggestedCategoryMatch = content.match(/Suggested Category:\s*(.*)/i)
-      const confidenceMatch = content.match(/Confidence Score:\s*(\d+)/i)
-      const analysisParts = content.split(/Analysis:\s*/i)
+      const content = response.choices[0]?.message?.content || '{}'
+      const parsed = JSON.parse(content)
 
       return {
-        suggestedCategory: suggestedCategoryMatch ? suggestedCategoryMatch[1].trim() : 'Uncertain',
-        confidence: confidenceMatch ? parseInt(confidenceMatch[1]) : 50,
-        analysis: analysisParts.length > 1 ? analysisParts[1].trim() : 'Manual analysis required.',
+        suggestedCategory: parsed.suggestedCategory || 'Uncertain',
+        confidence: parsed.confidence || 50,
+        analysis: parsed.analysis || 'Manual analysis required.',
         competitorCounts,
       }
     } catch (error) {

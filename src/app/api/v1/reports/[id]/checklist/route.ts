@@ -1,14 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth/next'
-
-const getPrismaClient = async () => {
-  const { PrismaClient } = await import('@prisma/client')
-  const globalForPrisma = globalThis as unknown as { prisma: any }
-  if (!globalForPrisma.prisma) {
-    globalForPrisma.prisma = new PrismaClient()
-  }
-  return globalForPrisma.prisma
-}
+import { getPrisma } from '@/lib/prisma'
 
 // PATCH /api/v1/reports/[id]/checklist - Update survey checklist item
 export async function PATCH(
@@ -17,11 +9,11 @@ export async function PATCH(
 ) {
   try {
     const session = await getServerSession()
-    if (!session?.user) {
+    if (!session?.user?.email) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const prisma = await getPrismaClient()
+    const prisma = getPrisma()
     const { id: reportId } = await params
     const body = await request.json()
     const { taskId, completed, notes } = body
@@ -34,7 +26,7 @@ export async function PATCH(
     }
 
     const user = await prisma.user.findUnique({
-      where: { email: session.user.email! },
+      where: { email: session.user.email },
     })
 
     if (!user) {

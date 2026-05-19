@@ -5,6 +5,7 @@
 
 generator client {
   provider = "prisma-client-js"
+  engineType = "library"
 }
 
 datasource db {
@@ -28,7 +29,6 @@ model Report {
   inventoryCost     Float?
   status            String           @default("COLLECTING_DATA") // COLLECTING_DATA, CLASSIFYING, SCORING, AI_GENERATING, COMPLETED, COMPLETED_WITH_WARNINGS
   confidence        Float           @default(0)
-  aiSummaryId       String?
   createdAt         DateTime         @default(now())
   updatedAt         DateTime         @updatedAt
   scoreCard         ScoreCard?

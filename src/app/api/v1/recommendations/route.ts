@@ -1,24 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth/next'
+import { getPrisma } from '@/lib/prisma'
 import { recommendationEngine } from '@/lib/services/recommendation-engine'
-
-const getPrismaClient = async () => {
-  const { PrismaClient } = await import('@prisma/client')
-  const globalForPrisma = globalThis as unknown as { prisma: any }
-  if (!globalForPrisma.prisma) {
-    globalForPrisma.prisma = new PrismaClient()
-  }
-  return globalForPrisma.prisma
-}
 
 export async function POST(request: NextRequest) {
   try {
     const session = await getServerSession()
-    if (!session?.user) {
+    if (!session?.user?.email) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const prisma = await getPrismaClient()
+    const prisma = getPrisma()
     const body = await request.json()
     const { location, latitude, longitude, radius } = body
 
@@ -27,7 +19,7 @@ export async function POST(request: NextRequest) {
     }
 
     const user = await prisma.user.findUnique({
-      where: { email: session.user.email! },
+      where: { email: session.user.email },
     })
 
     if (!user) {
@@ -70,13 +62,13 @@ export async function POST(request: NextRequest) {
 export async function GET(request: NextRequest) {
   try {
     const session = await getServerSession()
-    if (!session?.user) {
+    if (!session?.user?.email) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const prisma = await getPrismaClient()
+    const prisma = getPrisma()
     const user = await prisma.user.findUnique({
-      where: { email: session.user.email! },
+      where: { email: session.user.email },
     })
 
     if (!user) {

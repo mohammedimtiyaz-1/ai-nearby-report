@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import bcrypt from 'bcryptjs'
 import { z } from 'zod'
+import { getPrisma } from '@/lib/prisma'
 
 const registerSchema = z.object({
   name: z.string().min(1, 'Name is required'),
@@ -8,18 +9,9 @@ const registerSchema = z.object({
   password: z.string().min(8, 'Password must be at least 8 characters'),
 })
 
-const getPrismaClient = async () => {
-  const { PrismaClient } = await import('@prisma/client')
-  const globalForPrisma = globalThis as unknown as { prisma: any }
-  if (!globalForPrisma.prisma) {
-    globalForPrisma.prisma = new PrismaClient()
-  }
-  return globalForPrisma.prisma
-}
-
 export async function POST(request: NextRequest) {
   try {
-    const prisma = await getPrismaClient()
+    const prisma = getPrisma()
     const body = await request.json()
     
     // Validate input

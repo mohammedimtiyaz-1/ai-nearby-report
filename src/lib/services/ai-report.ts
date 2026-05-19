@@ -51,20 +51,27 @@ export class AIReportService {
         messages: [
           {
             role: 'system',
-            content: 'You are a business feasibility expert specializing in location intelligence and retail analysis. Provide concise, actionable insights.',
+            content: 'You are a business feasibility expert specializing in location intelligence and retail analysis. Provide concise, actionable insights in JSON format.',
           },
           {
             role: 'user',
             content: prompt,
           },
         ],
+        response_format: { type: 'json_object' },
         temperature: 0.7,
-        max_tokens: 1000,
       })
 
-      const content = response.choices[0]?.message?.content || ''
+      const content = response.choices[0]?.message?.content || '{}'
+      const parsed = JSON.parse(content)
 
-      return this.parseResponse(content)
+      return {
+        executiveSummary: parsed.executiveSummary || 'Unable to generate summary.',
+        opportunities: Array.isArray(parsed.opportunities) ? parsed.opportunities : [],
+        risks: Array.isArray(parsed.risks) ? parsed.risks : [],
+        recommendation: parsed.recommendation || 'Unable to generate recommendation.',
+        disclaimer: 'This analysis is based on available data and should be used as decision support only. Conduct additional on-site research before making final decisions.',
+      }
     } catch (error) {
       console.error('Error generating AI report:', error)
       return this.getFallbackReport(input)
@@ -90,11 +97,11 @@ Financial Data:
 Analyze the feasibility of opening a ${input.businessCategory} business (${input.businessModel}) at ${input.location} within a ${input.radius}m radius.
 
 Scores (0-100 scale):
-- Competition Score: ${input.competitionScore} (${input.competitionScore > 70 ? 'Low competition' : input.competitionScore > 40 ? 'Moderate competition' : 'High competition'})
-- Demand Score: ${input.demandScore} (${input.demandScore > 70 ? 'Strong demand' : input.demandScore > 40 ? 'Moderate demand' : 'Limited demand'})
-- Accessibility Score: ${input.accessibilityScore} (${input.accessibilityScore > 70 ? 'Excellent' : input.accessibilityScore > 40 ? 'Good' : 'Limited'})
-- Area Fit Score: ${input.areaFitScore} (${input.areaFitScore > 70 ? 'Strong fit' : input.areaFitScore > 40 ? 'Moderate fit' : 'Limited fit'})
-- Financial Pressure Score: ${input.financialPressureScore} (${input.financialPressureScore > 70 ? 'Low pressure' : input.financialPressureScore > 40 ? 'Moderate pressure' : 'High pressure'})
+- Competition Score: ${input.competitionScore}
+- Demand Score: ${input.demandScore}
+- Accessibility Score: ${input.accessibilityScore}
+- Area Fit Score: ${input.areaFitScore}
+- Financial Pressure Score: ${input.financialPressureScore}
 - Overall Confidence: ${input.confidence}%
 
 Market Analysis:
@@ -102,68 +109,14 @@ Market Analysis:
 - Demand Signals: ${input.demandSignalCount}
 ${financialSection}
 
-Provide a structured analysis with:
-1. Executive Summary (2-3 sentences)
-2. Key Opportunities (3 bullet points)
-3. Key Risks (3 bullet points)
-4. Final Recommendation (1-2 sentences)
-
-Format your response clearly with these sections.`
-  }
-
-  /**
-   * Parse the AI response into structured output
-   */
-  private parseResponse(content: string): AIReportOutput {
-    const lines = content.split('\n').filter(line => line.trim())
-    
-    let executiveSummary = ''
-    const opportunities: string[] = []
-    const risks: string[] = []
-    let recommendation = ''
-
-    let currentSection = 'summary'
-
-    for (const line of lines) {
-      const lowerLine = line.toLowerCase()
-      
-      if (lowerLine.includes('executive summary') || lowerLine.includes('summary:')) {
-        currentSection = 'summary'
-        continue
-      }
-      if (lowerLine.includes('opportunit')) {
-        currentSection = 'opportunities'
-        continue
-      }
-      if (lowerLine.includes('risk')) {
-        currentSection = 'risks'
-        continue
-      }
-      if (lowerLine.includes('recommendation')) {
-        currentSection = 'recommendation'
-        continue
-      }
-
-      if (currentSection === 'summary' && line.trim()) {
-        executiveSummary += line.trim() + ' '
-      } else if (currentSection === 'opportunities' && line.trim()) {
-        const cleaned = line.replace(/^[-*•]\s*/, '').trim()
-        if (cleaned) opportunities.push(cleaned)
-      } else if (currentSection === 'risks' && line.trim()) {
-        const cleaned = line.replace(/^[-*•]\s*/, '').trim()
-        if (cleaned) risks.push(cleaned)
-      } else if (currentSection === 'recommendation' && line.trim()) {
-        recommendation += line.trim() + ' '
-      }
-    }
-
-    return {
-      executiveSummary: executiveSummary.trim() || 'Unable to generate executive summary.',
-      opportunities: opportunities.length > 0 ? opportunities : ['No specific opportunities identified.'],
-      risks: risks.length > 0 ? risks : ['No specific risks identified.'],
-      recommendation: recommendation.trim() || 'Unable to generate specific recommendation.',
-      disclaimer: 'This analysis is based on available data and should be used as decision support only. Conduct additional on-site research before making final decisions.',
-    }
+Return a JSON object with:
+{
+  "executiveSummary": "2-3 sentences summarizing the situation",
+  "opportunities": ["string", "string", "string"],
+  "risks": ["string", "string", "string"],
+  "recommendation": "1-2 sentences with the final verdict"
+}
+`
   }
 
   /**

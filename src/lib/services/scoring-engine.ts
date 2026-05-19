@@ -87,16 +87,19 @@ export class ScoringEngine {
    * Higher score = better fit (better)
    */
   private calculateAreaFitScore(pois: ReportPOI[]): { score: number; reason: string } {
-    // Simplified scoring - in real implementation, this would analyze area demographics
+    // Analysis based on demand signal categories: education, healthcare, transportation, commercial, other
     const commercialPois = pois.filter(poi => poi.category === 'commercial')
-    const residentialPois = pois.filter(poi => poi.category === 'residential')
+    const educationPois = pois.filter(poi => poi.category === 'education')
+    const healthcarePois = pois.filter(poi => poi.category === 'healthcare')
+    const transportPois = pois.filter(poi => poi.category === 'transportation')
     
     let score = 50 // Base score
-    score += Math.min(25, commercialPois.length * 5) // Commercial activity
-    score += Math.min(25, residentialPois.length * 3) // Residential density
+    score += Math.min(20, commercialPois.length * 5) // Commercial activity
+    score += Math.min(15, educationPois.length * 5) // Education density
+    score += Math.min(15, transportPois.length * 5) // Transportation accessibility
     score = Math.min(100, score)
 
-    const reason = `Area analysis shows ${commercialPois.length} commercial and ${residentialPois.length} residential points. ${score > 70 ? 'Strong fit for business category.' : score > 40 ? 'Moderate fit - consider target audience.' : 'Limited fit - may need location adjustment.'}`
+    const reason = `Area analysis shows ${commercialPois.length} commercial points, ${educationPois.length} educational centers, and ${transportPois.length} transport hubs. ${score > 70 ? 'Strong fit for retail/service business.' : score > 40 ? 'Moderate fit - consider foot traffic patterns.' : 'Limited fit - check target audience density.'}`
 
     return { score, reason }
   }

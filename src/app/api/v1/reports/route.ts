@@ -1,45 +1,50 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth/next'
+import { z } from 'zod'
+import { getPrisma } from '@/lib/prisma'
 import { googlePlacesService, type NearbyPOI } from '@/lib/services/google-places'
 import { scoringEngine, type ScoringInput } from '@/lib/services/scoring-engine'
 import { aiReportService } from '@/lib/services/ai-report'
 
-// Lazy initialize Prisma to avoid build-time instantiation
-const getPrismaClient = async () => {
-  const { PrismaClient } = await import('@prisma/client')
-  const globalForPrisma = globalThis as unknown as { prisma: any }
-  
-  if (!globalForPrisma.prisma) {
-    globalForPrisma.prisma = new PrismaClient()
-  }
-  
-  return globalForPrisma.prisma
-}
+const createReportSchema = z.object({
+  businessCategory: z.string().min(1),
+  businessModel: z.string().min(1),
+  location: z.string().min(1),
+  latitude: z.number(),
+  longitude: z.number(),
+  radius: z.number().int().positive(),
+  rent: z.number().optional(),
+  shopSize: z.number().optional(),
+  setupBudget: z.number().optional(),
+  staffCost: z.number().optional(),
+  inventoryCost: z.number().optional(),
+})
 
 // POST /api/v1/reports - Create a new report
 export async function POST(request: NextRequest) {
   try {
     const session = await getServerSession()
-    if (!session?.user) {
+    if (!session?.user?.email) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const prisma = await getPrismaClient()
+    const prisma = getPrisma()
     const body = await request.json()
     
     // Validate required fields
-    const { businessCategory, businessModel, location, latitude, longitude, radius } = body
-    
-    if (!businessCategory || !businessModel || !location || !latitude || !longitude || !radius) {
+    const validation = createReportSchema.safeParse(body)
+    if (!validation.success) {
       return NextResponse.json(
-        { error: 'Missing required fields' },
+        { error: 'Invalid input data', details: validation.error.format() },
         { status: 400 }
       )
     }
 
-    // Get user from email (NextAuth session doesn't always have ID)
+    const data = validation.data
+
+    // Get user from email
     const user = await prisma.user.findUnique({
-      where: { email: session.user.email! },
+      where: { email: session.user.email },
     })
 
     if (!user) {
@@ -50,28 +55,28 @@ export async function POST(request: NextRequest) {
     const report = await prisma.report.create({
       data: {
         userId: user.id,
-        businessCategoryId: businessCategory,
-        businessModel,
-        location,
-        latitude: parseFloat(latitude),
-        longitude: parseFloat(longitude),
-        radius: parseInt(radius),
-        rent: body.rent ? parseFloat(body.rent) : null,
-        shopSize: body.shopSize ? parseFloat(body.shopSize) : null,
-        setupBudget: body.setupBudget ? parseFloat(body.setupBudget) : null,
-        staffCost: body.staffCost ? parseFloat(body.staffCost) : null,
-        inventoryCost: body.inventoryCost ? parseFloat(body.inventoryCost) : null,
+        businessCategoryId: data.businessCategory,
+        businessModel: data.businessModel,
+        location: data.location,
+        latitude: data.latitude,
+        longitude: data.longitude,
+        radius: data.radius,
+        rent: data.rent || null,
+        shopSize: data.shopSize || null,
+        setupBudget: data.setupBudget || null,
+        staffCost: data.staffCost || null,
+        inventoryCost: data.inventoryCost || null,
         status: 'COLLECTING_DATA',
         confidence: 0,
       },
     })
 
-    // Collect nearby POI data from Google Places
+    // 1. Collect nearby POI data from Google Places
     const pois: NearbyPOI[] = await googlePlacesService.searchNearbyPlaces(
-      parseFloat(latitude),
-      parseFloat(longitude),
-      parseInt(radius),
-      businessCategory
+      data.latitude,
+      data.longitude,
+      data.radius,
+      data.businessCategory
     )
 
     // Store POIs in database
@@ -94,15 +99,15 @@ export async function POST(request: NextRequest) {
       )
     )
 
-    // Calculate feasibility scores
+    // 2. Calculate feasibility scores
     const scoringInput: ScoringInput = {
       pois: reportPOIs,
       financialData: {
-        rent: body.rent ? parseFloat(body.rent) : undefined,
-        shopSize: body.shopSize ? parseFloat(body.shopSize) : undefined,
-        setupBudget: body.setupBudget ? parseFloat(body.setupBudget) : undefined,
-        staffCost: body.staffCost ? parseFloat(body.staffCost) : undefined,
-        inventoryCost: body.inventoryCost ? parseFloat(body.inventoryCost) : undefined,
+        rent: data.rent,
+        shopSize: data.shopSize,
+        setupBudget: data.setupBudget,
+        staffCost: data.staffCost,
+        inventoryCost: data.inventoryCost,
       },
     }
 
@@ -125,20 +130,20 @@ export async function POST(request: NextRequest) {
       },
     })
 
-    // Generate AI report
+    // 3. Generate AI report
     const aiReport = await aiReportService.generateReport({
-      businessCategory,
-      businessModel,
-      location,
-      radius: parseInt(radius),
+      businessCategory: data.businessCategory,
+      businessModel: data.businessModel,
+      location: data.location,
+      radius: data.radius,
       competitionScore: scores.competitionScore,
       demandScore: scores.demandScore,
       accessibilityScore: scores.accessibilityScore,
       areaFitScore: scores.areaFitScore,
       financialPressureScore: scores.financialPressureScore,
       confidence: scores.confidence,
-      competitorCount: reportPOIs.filter(p => p.type === 'competitor_direct' || p.type === 'competitor_indirect').length,
-      demandSignalCount: reportPOIs.filter(p => p.type === 'demand_signal').length,
+      competitorCount: reportPOIs.filter((p: any) => p.type === 'competitor_direct' || p.type === 'competitor_indirect').length,
+      demandSignalCount: reportPOIs.filter((p: any) => p.type === 'demand_signal').length,
       financialData: scoringInput.financialData,
     })
 
@@ -155,7 +160,7 @@ export async function POST(request: NextRequest) {
       },
     })
 
-    // Create default survey checklist tasks
+    // 4. Create default survey checklist tasks
     const defaultTasks = [
       'Visit at different times of day',
       'Count pedestrian movement manually',
@@ -176,7 +181,7 @@ export async function POST(request: NextRequest) {
       )
     )
 
-    // Update report with final status
+    // 5. Update report with final status
     const updatedReport = await prisma.report.update({
       where: { id: report.id },
       data: {
@@ -205,15 +210,14 @@ export async function POST(request: NextRequest) {
 export async function GET(request: NextRequest) {
   try {
     const session = await getServerSession()
-    if (!session?.user) {
+    if (!session?.user?.email) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const prisma = await getPrismaClient()
-    
+    const prisma = getPrisma()
     // Get user from email
     const user = await prisma.user.findUnique({
-      where: { email: session.user.email! },
+      where: { email: session.user.email },
     })
 
     if (!user) {

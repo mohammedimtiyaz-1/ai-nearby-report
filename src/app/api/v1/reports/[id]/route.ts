@@ -1,14 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth/next'
-
-const getPrismaClient = async () => {
-  const { PrismaClient } = await import('@prisma/client')
-  const globalForPrisma = globalThis as unknown as { prisma: any }
-  if (!globalForPrisma.prisma) {
-    globalForPrisma.prisma = new PrismaClient()
-  }
-  return globalForPrisma.prisma
-}
+import { getPrisma } from '@/lib/prisma'
 
 // GET /api/v1/reports/[id] - Get a single report with all related data
 export async function GET(
@@ -17,15 +9,15 @@ export async function GET(
 ) {
   try {
     const session = await getServerSession()
-    if (!session?.user) {
+    if (!session?.user?.email) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const prisma = await getPrismaClient()
+    const prisma = getPrisma()
     const { id } = await params
 
     const user = await prisma.user.findUnique({
-      where: { email: session.user.email! },
+      where: { email: session.user.email },
     })
 
     if (!user) {
