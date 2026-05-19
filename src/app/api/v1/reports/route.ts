@@ -1,4 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { PrismaClient } from '@prisma/client'
+import { googlePlacesService, type NearbyPOI } from '@/lib/services/google-places'
+import { scoringEngine, type ScoringInput } from '@/lib/services/scoring-engine'
+import { aiReportService } from '@/lib/services/ai-report'
+
+const prisma = new PrismaClient()
 
 // POST /api/v1/reports - Create a new report
 export async function POST(request: NextRequest) {
@@ -15,34 +21,116 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // TODO: Integrate with Prisma to create report in database
-    // TODO: Call Google Places API to collect nearby POI data
-    // TODO: Classify competitors, demand signals, accessibility indicators
-    // TODO: Calculate feasibility scores
-    // TODO: Generate AI summary using OpenAI
+    // Create report in database with initial status
+    const report = await prisma.report.create({
+      data: {
+        userId: 'user-123', // TODO: Get from auth session
+        businessCategoryId: businessCategory,
+        businessModel,
+        location,
+        latitude: parseFloat(latitude),
+        longitude: parseFloat(longitude),
+        radius: parseInt(radius),
+        rent: body.rent ? parseFloat(body.rent) : null,
+        shopSize: body.shopSize ? parseFloat(body.shopSize) : null,
+        setupBudget: body.setupBudget ? parseFloat(body.setupBudget) : null,
+        staffCost: body.staffCost ? parseFloat(body.staffCost) : null,
+        inventoryCost: body.inventoryCost ? parseFloat(body.inventoryCost) : null,
+        status: 'COLLECTING_DATA',
+        confidence: 0,
+      },
+    })
 
-    // Mock response for now
-    const report = {
-      id: crypto.randomUUID(),
-      userId: 'user-123', // TODO: Get from auth session
+    // Collect nearby POI data from Google Places
+    const pois: NearbyPOI[] = await googlePlacesService.searchNearbyPlaces(
+      parseFloat(latitude),
+      parseFloat(longitude),
+      parseInt(radius),
+      businessCategory
+    )
+
+    // Store POIs in database
+    const reportPOIs = await Promise.all(
+      pois.map(poi =>
+        prisma.reportPOI.create({
+          data: {
+            reportId: report.id,
+            name: poi.name,
+            type: poi.type,
+            category: poi.category,
+            address: poi.address,
+            latitude: poi.latitude,
+            longitude: poi.longitude,
+            rating: poi.rating,
+            priceLevel: poi.priceLevel,
+            isOpen: poi.isOpen,
+          },
+        })
+      )
+    )
+
+    // Calculate feasibility scores
+    const scoringInput: ScoringInput = {
+      pois: reportPOIs,
+      financialData: {
+        rent: body.rent ? parseFloat(body.rent) : undefined,
+        shopSize: body.shopSize ? parseFloat(body.shopSize) : undefined,
+        setupBudget: body.setupBudget ? parseFloat(body.setupBudget) : undefined,
+        staffCost: body.staffCost ? parseFloat(body.staffCost) : undefined,
+        inventoryCost: body.inventoryCost ? parseFloat(body.inventoryCost) : undefined,
+      },
+    }
+
+    const scores = scoringEngine.calculateScores(scoringInput)
+
+    // Create score card
+    await prisma.scoreCard.create({
+      data: {
+        reportId: report.id,
+        competitionScore: scores.competitionScore,
+        demandScore: scores.demandScore,
+        accessibilityScore: scores.accessibilityScore,
+        areaFitScore: scores.areaFitScore,
+        financialPressureScore: scores.financialPressureScore,
+        competitionReason: scores.reasons.competition,
+        demandReason: scores.reasons.demand,
+        accessibilityReason: scores.reasons.accessibility,
+        areaFitReason: scores.reasons.areaFit,
+        financialPressureReason: scores.reasons.financialPressure,
+      },
+    })
+
+    // Generate AI report
+    const aiReport = await aiReportService.generateReport({
       businessCategory,
       businessModel,
       location,
-      latitude,
-      longitude,
       radius: parseInt(radius),
-      rent: body.rent || null,
-      shopSize: body.shopSize || null,
-      setupBudget: body.setupBudget || null,
-      staffCost: body.staffCost || null,
-      inventoryCost: body.inventoryCost || null,
-      status: 'COLLECTING_DATA',
-      confidence: 0,
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-    }
+      competitionScore: scores.competitionScore,
+      demandScore: scores.demandScore,
+      accessibilityScore: scores.accessibilityScore,
+      areaFitScore: scores.areaFitScore,
+      financialPressureScore: scores.financialPressureScore,
+      confidence: scores.confidence,
+      competitorCount: reportPOIs.filter(p => p.type === 'competitor_direct' || p.type === 'competitor_indirect').length,
+      demandSignalCount: reportPOIs.filter(p => p.type === 'demand_signal').length,
+      financialData: scoringInput.financialData,
+    })
 
-    return NextResponse.json(report, { status: 201 })
+    // Update report with final status
+    const updatedReport = await prisma.report.update({
+      where: { id: report.id },
+      data: {
+        status: scores.confidence > 50 ? 'COMPLETED' : 'COMPLETED_WITH_WARNINGS',
+        confidence: scores.confidence,
+      },
+    })
+
+    return NextResponse.json({
+      ...updatedReport,
+      scores,
+      aiReport,
+    }, { status: 201 })
   } catch (error) {
     console.error('Error creating report:', error)
     return NextResponse.json(
@@ -58,8 +146,15 @@ export async function GET(request: NextRequest) {
     // TODO: Get userId from auth session
     const userId = 'user-123'
     
-    // TODO: Integrate with Prisma to fetch reports
-    const reports: any[] = []
+    const reports = await prisma.report.findMany({
+      where: { userId },
+      include: {
+        scoreCard: true,
+        pois: true,
+        surveyChecklist: true,
+      },
+      orderBy: { createdAt: 'desc' },
+    })
 
     return NextResponse.json({ reports })
   } catch (error) {
