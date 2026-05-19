@@ -13,11 +13,12 @@ const createReportSchema = z.object({
   latitude: z.number(),
   longitude: z.number(),
   radius: z.number().int().positive(),
-  rent: z.number().optional(),
-  shopSize: z.number().optional(),
-  setupBudget: z.number().optional(),
-  staffCost: z.number().optional(),
-  inventoryCost: z.number().optional(),
+  rent: z.preprocess((val) => (val === '' ? undefined : Number(val)), z.number().optional()),
+  shopSize: z.preprocess((val) => (val === '' ? undefined : Number(val)), z.number().optional()),
+  setupBudget: z.preprocess((val) => (val === '' ? undefined : Number(val)), z.number().optional()),
+  staffCost: z.preprocess((val) => (val === '' ? undefined : Number(val)), z.number().optional()),
+  inventoryCost: z.preprocess((val) => (val === '' ? undefined : Number(val)), z.number().optional()),
+  specialConcerns: z.string().optional(),
 })
 
 // POST /api/v1/reports - Create a new report
@@ -66,6 +67,7 @@ export async function POST(request: NextRequest) {
         setupBudget: data.setupBudget || null,
         staffCost: data.staffCost || null,
         inventoryCost: data.inventoryCost || null,
+        specialConcerns: data.specialConcerns || null,
         status: 'COLLECTING_DATA',
         confidence: 0,
       },
@@ -145,6 +147,7 @@ export async function POST(request: NextRequest) {
       competitorCount: reportPOIs.filter((p: any) => p.type === 'competitor_direct' || p.type === 'competitor_indirect').length,
       demandSignalCount: reportPOIs.filter((p: any) => p.type === 'demand_signal').length,
       financialData: scoringInput.financialData,
+      specialConcerns: data.specialConcerns,
     })
 
     // Store AI summary in database

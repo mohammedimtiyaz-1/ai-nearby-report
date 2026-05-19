@@ -9,6 +9,7 @@ interface ReportData {
   status: string
   confidence: number
   createdAt: string
+  specialConcerns?: string
   scoreCard: {
     competitionScore: number
     demandScore: number
@@ -67,7 +68,18 @@ export class PDFExportService {
     doc.text(`Radius: ${data.radius}m`, margin, yPosition)
     yPosition += 8
     doc.text(`Generated: ${new Date(data.createdAt).toLocaleDateString()}`, margin, yPosition)
-    yPosition += 20
+    yPosition += 10
+
+    if (data.specialConcerns) {
+      doc.setFontSize(10)
+      doc.setFont('helvetica', 'italic')
+      doc.setTextColor(153, 102, 51) // Brownish for concerns
+      const specialConcernsLines = doc.splitTextToSize(`Special Concerns: ${data.specialConcerns}`, pageWidth - 2 * margin)
+      doc.text(specialConcernsLines, margin, yPosition)
+      yPosition += specialConcernsLines.length * 5 + 10
+    }
+
+    yPosition += 10
 
     // Confidence Score
     doc.setFillColor(79, 70, 229)

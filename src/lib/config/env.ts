@@ -4,6 +4,7 @@ const envSchema = z.object({
   DATABASE_URL: z.string().url(),
   GOOGLE_PLACES_API_KEY: z.string().min(1),
   OPENAI_API_KEY: z.string().min(1),
+  NEXT_PUBLIC_GOOGLE_MAPS_API_KEY: z.string().min(1),
   NEXTAUTH_SECRET: z.string().min(1),
   NEXTAUTH_URL: z.string().url(),
   NEXT_PUBLIC_APP_URL: z.string().url(),

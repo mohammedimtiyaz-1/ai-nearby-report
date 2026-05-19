@@ -9,6 +9,8 @@ interface Report {
   businessCategoryId: string
   businessModel: string
   location: string
+  inventoryCost?: number
+  specialConcerns?: string
   radius: number
   status: string
   confidence: number
@@ -90,6 +92,7 @@ export default function ReportDetailPage() {
         status: report.status,
         confidence: report.confidence,
         createdAt: report.createdAt,
+        specialConcerns: report.specialConcerns,
         scoreCard: report.scoreCard || {
           competitionScore: 0,
           demandScore: 0,
@@ -249,6 +252,14 @@ export default function ReportDetailPage() {
             {report.businessCategoryId.replace('_', ' ')}
           </h1>
           <p className="text-gray-600 text-lg mb-4">{report.location}</p>
+          
+          {report.specialConcerns && (
+            <div className="mb-6 p-4 bg-amber-50 border border-amber-200 rounded-lg">
+              <h3 className="text-sm font-semibold text-amber-900 mb-1 italic">Special Concerns Addressed:</h3>
+              <p className="text-amber-800 text-sm italic">{report.specialConcerns}</p>
+            </div>
+          )}
+
           <div className="flex items-center space-x-4 text-sm text-gray-500 mb-4">
             <span>Radius: {report.radius}m</span>
             <span>Created: {new Date(report.createdAt).toLocaleDateString()}</span>

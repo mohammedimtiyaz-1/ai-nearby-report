@@ -16,8 +16,8 @@ export async function GET(request: NextRequest) {
       id: place.id,
       name: place.displayName?.text || '',
       address: place.formattedAddress || '',
-      latitude: place.location?.latitude || 0,
-      longitude: place.location?.longitude || 0,
+      latitude: place.location?.lat || place.location?.latitude || 0,
+      longitude: place.location?.lng || place.location?.longitude || 0,
     }))
 
     return NextResponse.json({ places: formattedPlaces })

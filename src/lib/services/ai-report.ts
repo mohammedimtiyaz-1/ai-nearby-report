@@ -20,6 +20,7 @@ export interface AIReportInput {
     staffCost?: number
     inventoryCost?: number
   }
+  specialConcerns?: string
 }
 
 export interface AIReportOutput {
@@ -93,6 +94,14 @@ Financial Data:
 `
       : ''
 
+    const specialConcernsSection = input.specialConcerns
+      ? `
+User Special Concerns:
+"${input.specialConcerns}"
+Please address these concerns specifically in your analysis.
+`
+      : ''
+
     return `
 Analyze the feasibility of opening a ${input.businessCategory} business (${input.businessModel}) at ${input.location} within a ${input.radius}m radius.
 
@@ -108,6 +117,7 @@ Market Analysis:
 - Competitors Found: ${input.competitorCount}
 - Demand Signals: ${input.demandSignalCount}
 ${financialSection}
+${specialConcernsSection}
 
 Return a JSON object with:
 {
