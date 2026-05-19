@@ -1,7 +1,7 @@
 'use client'
 
-import { useState, useEffect } from 'react'
-import { useRouter } from 'next/navigation'
+import { useState, useEffect, Suspense } from 'react'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
@@ -28,8 +28,9 @@ interface Category {
   models: string[]
 }
 
-export default function NewReportPage() {
+function NewReportForm() {
   const router = useRouter()
+  const searchParams = useSearchParams()
   const [step, setStep] = useState(1)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -49,6 +50,8 @@ export default function NewReportPage() {
       radius: '1000',
       latitude: 0,
       longitude: 0,
+      businessCategory: searchParams.get('category') || '',
+      location: searchParams.get('location') || '',
     }
   })
 
@@ -61,7 +64,7 @@ export default function NewReportPage() {
 
   useEffect(() => {
     const timer = setTimeout(() => {
-      if (locationQuery && locationQuery.length >= 3 && !searchingLocation) {
+      if (locationQuery && locationQuery.length >= 3 && !searchingLocation && !searchParams.get('location')) {
         searchLocations(locationQuery)
       }
     }, 500)
@@ -327,5 +330,13 @@ export default function NewReportPage() {
         </div>
       </div>
     </div>
+  )
+}
+
+export default function NewReportPage() {
+  return (
+    <Suspense fallback={<div>Loading...</div>}>
+      <NewReportForm />
+    </Suspense>
   )
 }

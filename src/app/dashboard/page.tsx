@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { useSession, signOut } from 'next-auth/react'
+import Link from 'next/link'
 
 interface Report {
   id: string
@@ -20,27 +21,44 @@ interface Report {
   }
 }
 
+interface Recommendation {
+  id: string
+  location: string
+  suggestedCategory: string
+  confidence: number
+  createdAt: string
+}
+
 export default function DashboardPage() {
   const { data: session } = useSession()
   const [reports, setReports] = useState<Report[]>([])
+  const [recommendations, setRecommendations] = useState<Recommendation[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
     if (session) {
-      fetchReports()
+      fetchData()
     }
   }, [session])
 
-  const fetchReports = async () => {
+  const fetchData = async () => {
     try {
       setLoading(true)
-      const response = await fetch('/api/v1/reports')
-      if (!response.ok) throw new Error('Failed to fetch reports')
-      const data = await response.json()
-      setReports(data.reports || [])
+      const [reportsRes, recsRes] = await Promise.all([
+        fetch('/api/v1/reports'),
+        fetch('/api/v1/recommendations')
+      ])
+
+      if (!reportsRes.ok || !recsRes.ok) throw new Error('Failed to fetch dashboard data')
+      
+      const reportsData = await reportsRes.json()
+      const recsData = await recsRes.json()
+      
+      setReports(reportsData.reports || [])
+      setRecommendations(recsData.recommendations || [])
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to load reports')
+      setError(err instanceof Error ? err.message : 'Failed to load dashboard')
     } finally {
       setLoading(false)
     }
@@ -119,6 +137,9 @@ export default function DashboardPage() {
               <div className="flex items-center space-x-4 text-sm">
                 <a href="/dashboard" className="text-gray-900 font-medium">Dashboard</a>
                 <a href="/reports/new" className="text-gray-600 hover:text-gray-900">Create Report</a>
+                <Link href="/recommendations/new" className="text-gray-600 hover:text-gray-900 font-semibold text-indigo-600 italic">
+                  Suggest a Business ✨
+                </Link>
               </div>
               <div className="flex items-center pl-6 border-l border-gray-200 space-x-4">
                 <span className="text-sm text-gray-500">{session?.user?.name}</span>
@@ -136,22 +157,36 @@ export default function DashboardPage() {
 
       {/* Main Content */}
       <div className="max-w-7xl mx-auto py-12 px-4 sm:px-6 lg:px-8">
+        {/* Recommendation CTA */}
+        <div className="bg-indigo-600 rounded-2xl p-8 mb-12 shadow-xl shadow-indigo-100 flex flex-col md:flex-row items-center justify-between">
+          <div className="text-white mb-6 md:mb-0">
+            <h2 className="text-2xl font-bold mb-2">Not sure what business to start?</h2>
+            <p className="text-indigo-100 opacity-90 text-lg">Use our AI to find the perfect business for your chosen location.</p>
+          </div>
+          <Link
+            href="/recommendations/new"
+            className="px-8 py-4 bg-white text-indigo-600 font-bold rounded-xl hover:bg-indigo-50 transition-colors shadow-lg"
+          >
+            Ask AI: What should I open here?
+          </Link>
+        </div>
+
         <div className="flex justify-between items-center mb-8">
           <div>
-            <h1 className="text-3xl font-bold text-gray-900 mb-2">Your Reports</h1>
-            <p className="text-gray-600 text-lg">Manage and analyze your location feasibility reports</p>
+            <h1 className="text-3xl font-bold text-gray-900 mb-2">Detailed Feasibility Reports</h1>
+            <p className="text-gray-600 text-lg">In-depth analysis for specific business types</p>
           </div>
           <a
             href="/reports/new"
-            className="px-6 py-3 bg-indigo-600 text-white font-semibold rounded-lg hover:bg-indigo-700 shadow-sm"
+            className="px-6 py-3 bg-white text-indigo-600 border border-indigo-200 font-semibold rounded-lg hover:bg-indigo-50 transition-all shadow-sm"
           >
-            Create New Report
+            New Detailed Report
           </a>
         </div>
 
         {reports.length === 0 ? (
-          <div className="bg-white rounded-lg border border-gray-200 p-12 text-center">
-            <p className="text-gray-600 mb-4">No reports yet</p>
+          <div className="bg-white rounded-lg border border-gray-200 p-12 text-center mb-12">
+            <p className="text-gray-600 mb-4">No detailed reports yet</p>
             <a
               href="/reports/new"
               className="px-6 py-3 bg-indigo-600 text-white font-semibold rounded-lg hover:bg-indigo-700"
@@ -160,7 +195,7 @@ export default function DashboardPage() {
             </a>
           </div>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-12">
             {reports.map((report) => (
               <div
                 key={report.id}
@@ -177,18 +212,16 @@ export default function DashboardPage() {
                 </div>
 
                 {/* Score */}
-                {report.scoreCard && (
-                  <div className="mb-4">
-                    <div className={`text-3xl font-bold ${getScoreColor(report.confidence)}`}>
-                      {report.confidence}%
-                    </div>
-                    <p className="text-gray-600 text-sm">Confidence Score</p>
+                <div className="mb-4">
+                  <div className={`text-3xl font-bold ${getScoreColor(report.confidence)}`}>
+                    {report.confidence}%
                   </div>
-                )}
+                  <p className="text-gray-600 text-sm">Confidence Score</p>
+                </div>
 
                 {/* Location */}
                 <div className="mb-4">
-                  <p className="text-gray-600 text-sm">{report.location}</p>
+                  <p className="text-gray-600 text-sm truncate">{report.location}</p>
                   <p className="text-gray-400 text-xs">Radius: {report.radius}m</p>
                 </div>
 
@@ -208,7 +241,38 @@ export default function DashboardPage() {
             ))}
           </div>
         )}
+
+        {recommendations.length > 0 && (
+          <>
+            <h2 className="text-2xl font-bold text-gray-900 mb-6">Recent AI Recommendations</h2>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+              {recommendations.map((rec) => (
+                <div key={rec.id} className="bg-white border border-gray-200 rounded-xl p-5 hover:border-indigo-300 transition-colors">
+                  <div className="flex justify-between items-center mb-3">
+                    <span className="text-xs font-bold text-indigo-600 uppercase tracking-widest bg-indigo-50 px-2 py-1 rounded">Suggested</span>
+                    <span className="text-xs text-gray-400">{new Date(rec.createdAt).toLocaleDateString()}</span>
+                  </div>
+                  <h4 className="text-xl font-bold text-gray-900 capitalize mb-1">{rec.suggestedCategory}</h4>
+                  <p className="text-gray-500 text-sm truncate mb-3">{rec.location}</p>
+                  <div className="flex items-center justify-between pt-3 border-t border-gray-50">
+                    <div className="flex items-center space-x-1">
+                      <span className="text-xs text-gray-400">Match:</span>
+                      <span className="text-sm font-bold text-green-600">{rec.confidence}%</span>
+                    </div>
+                    <Link 
+                      href={`/reports/new?location=${encodeURIComponent(rec.location)}&category=${rec.suggestedCategory}`}
+                      className="text-indigo-600 text-xs font-bold hover:underline"
+                    >
+                      Analyze Detail →
+                    </Link>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </>
+        )}
       </div>
     </div>
   )
 }
+

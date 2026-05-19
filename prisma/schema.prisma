@@ -49,10 +49,29 @@ model User {
   emailVerified DateTime?
   image         String?
   reports       Report[]
+  recommendations Recommendation[]
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
 
   @@index([email])
+}
+
+model Recommendation {
+  id                String   @id @default(uuid())
+  userId            String
+  user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  location          String
+  latitude          Float
+  longitude         Float
+  radius            Int
+  suggestedCategory String?
+  confidence        Float    @default(0)
+  analysis          String?  @db.Text
+  competitorData    Json?    // Detailed POI counts per category
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  @@index([userId])
 }
 
 model AISummary {
