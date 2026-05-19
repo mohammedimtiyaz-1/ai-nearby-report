@@ -1,14 +1,24 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { PrismaClient } from '@prisma/client'
 import { googlePlacesService, type NearbyPOI } from '@/lib/services/google-places'
 import { scoringEngine, type ScoringInput } from '@/lib/services/scoring-engine'
 import { aiReportService } from '@/lib/services/ai-report'
 
-const prisma = new PrismaClient()
+// Lazy initialize Prisma to avoid build-time instantiation
+const getPrismaClient = async () => {
+  const { PrismaClient } = await import('@prisma/client')
+  const globalForPrisma = globalThis as unknown as { prisma: any }
+  
+  if (!globalForPrisma.prisma) {
+    globalForPrisma.prisma = new PrismaClient()
+  }
+  
+  return globalForPrisma.prisma
+}
 
 // POST /api/v1/reports - Create a new report
 export async function POST(request: NextRequest) {
   try {
+    const prisma = await getPrismaClient()
     const body = await request.json()
     
     // Validate required fields
@@ -143,6 +153,7 @@ export async function POST(request: NextRequest) {
 // GET /api/v1/reports - List all reports for a user
 export async function GET(request: NextRequest) {
   try {
+    const prisma = await getPrismaClient()
     // TODO: Get userId from auth session
     const userId = 'user-123'
     
