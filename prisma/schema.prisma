@@ -1,0 +1,94 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Get a free hosted Postgres database in seconds: `npx create-db`
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model Report {
+  id                String           @id @default(uuid())
+  userId            String
+  businessCategoryId String
+  location          String
+  latitude          Float
+  longitude         Float
+  radius            Int
+  businessModel     String?
+  rent              Float?
+  shopSize          Float?
+  setupBudget       Float?
+  staffCost         Float?
+  inventoryCost     Float?
+  status            String           @default("COLLECTING_DATA") // COLLECTING_DATA, CLASSIFYING, SCORING, AI_GENERATING, COMPLETED, COMPLETED_WITH_WARNINGS
+  confidence        Float           @default(0)
+  aiSummaryId       String?
+  createdAt         DateTime         @default(now())
+  updatedAt         DateTime         @updatedAt
+  scoreCard         ScoreCard?
+  pois              ReportPOI[]
+  surveyChecklist   SurveyChecklist[]
+
+  @@index([userId])
+  @@index([businessCategoryId])
+  @@index([status])
+}
+
+model ReportPOI {
+  id          String   @id @default(uuid())
+  reportId    String
+  report      Report   @relation(fields: [reportId], references: [id], onDelete: Cascade)
+  name        String
+  type        String   // competitor_direct, competitor_indirect, demand_signal, accessibility_indicator
+  category    String?
+  address     String?
+  latitude    Float
+  longitude   Float
+  geometry    String?  // PostGIS geometry as WKT
+  rating      Float?
+  priceLevel  Int?
+  isOpen      Boolean?
+  createdAt   DateTime @default(now())
+
+  @@index([reportId])
+  @@index([type])
+  @@index([category])
+}
+
+model ScoreCard {
+  id                  String   @id @default(uuid())
+  reportId            String   @unique
+  report              Report   @relation(fields: [reportId], references: [id], onDelete: Cascade)
+  competitionScore    Float    @default(0)
+  demandScore         Float    @default(0)
+  accessibilityScore  Float    @default(0)
+  areaFitScore        Float    @default(0)
+  financialPressureScore Float @default(0)
+  competitionReason   String?
+  demandReason        String?
+  accessibilityReason String?
+  areaFitReason       String?
+  financialPressureReason String?
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  @@index([reportId])
+}
+
+model SurveyChecklist {
+  id          String   @id @default(uuid())
+  reportId    String
+  report      Report   @relation(fields: [reportId], references: [id], onDelete: Cascade)
+  task        String
+  completed   Boolean  @default(false)
+  notes       String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([reportId])
+}
