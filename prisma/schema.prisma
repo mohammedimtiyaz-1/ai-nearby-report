@@ -31,12 +31,29 @@ model Report {
   createdAt         DateTime         @default(now())
   updatedAt         DateTime         @updatedAt
   scoreCard         ScoreCard?
+  aiSummary         AISummary?
   pois              ReportPOI[]
   surveyChecklist   SurveyChecklist[]
 
   @@index([userId])
   @@index([businessCategoryId])
   @@index([status])
+}
+
+model AISummary {
+  id               String   @id @default(uuid())
+  reportId         String   @unique
+  report           Report   @relation(fields: [reportId], references: [id], onDelete: Cascade)
+  executiveSummary String
+  opportunities    String[]
+  risks            String[]
+  recommendation   String
+  disclaimer       String
+  modelName        String?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  @@index([reportId])
 }
 
 model ReportPOI {

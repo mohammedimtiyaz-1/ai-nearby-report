@@ -25,6 +25,13 @@ interface Report {
     areaFitReason: string
     financialPressureReason: string
   }
+  aiSummary?: {
+    executiveSummary: string
+    opportunities: string[]
+    risks: string[]
+    recommendation: string
+    disclaimer: string
+  }
   pois?: Array<{
     id: string
     name: string
@@ -41,19 +48,10 @@ interface Report {
   }>
 }
 
-interface AIReport {
-  executiveSummary: string
-  opportunities: string[]
-  risks: string[]
-  recommendation: string
-  disclaimer: string
-}
-
 export default function ReportDetailPage() {
   const params = useParams()
   const router = useRouter()
   const [report, setReport] = useState<Report | null>(null)
-  const [aiReport, setAiReport] = useState<AIReport | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [generatingPDF, setGeneratingPDF] = useState(false)
@@ -72,27 +70,6 @@ export default function ReportDetailPage() {
       }
       const data = await response.json()
       setReport(data.report)
-      
-      // If report has scoreCard, construct AI report from it
-      if (data.report.scoreCard) {
-        setAiReport({
-          executiveSummary: `Based on the analysis of ${data.report.location}, the ${data.report.businessCategoryId.replace('_', ' ')} business shows ${data.report.confidence > 50 ? 'promising' : 'challenging'} potential with a confidence score of ${data.report.confidence}%.`,
-          opportunities: [
-            data.report.scoreCard.demandReason,
-            data.report.scoreCard.competitionReason,
-            data.report.scoreCard.accessibilityReason,
-          ],
-          risks: [
-            data.report.scoreCard.financialPressureReason,
-            data.report.scoreCard.areaFitReason,
-            'Additional on-site research recommended before final decision.',
-          ],
-          recommendation: data.report.confidence > 60
-            ? `Proceed with ${data.report.businessCategoryId.replace('_', ' ')} at ${data.report.location} with recommended due diligence.`
-            : `Consider alternative locations or gather more data before proceeding with ${data.report.businessCategoryId.replace('_', ' ')} at ${data.report.location}.`,
-          disclaimer: 'This analysis is based on available data and should be used as decision support only. Conduct additional on-site research before making final decisions.',
-        })
-      }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load report')
     } finally {
@@ -101,7 +78,7 @@ export default function ReportDetailPage() {
   }
 
   const handleDownloadPDF = async () => {
-    if (!report || !aiReport) return
+    if (!report || !report.aiSummary) return
     
     setGeneratingPDF(true)
     try {
@@ -125,7 +102,7 @@ export default function ReportDetailPage() {
           areaFitReason: '',
           financialPressureReason: '',
         },
-        aiReport: aiReport,
+        aiReport: report.aiSummary,
         pois: report.pois || [],
       })
 
@@ -146,14 +123,36 @@ export default function ReportDetailPage() {
     }
   }
 
-  const handleChecklistToggle = (taskId: string) => {
+  const handleChecklistToggle = async (taskId: string, currentStatus: boolean, task: string) => {
     if (!report) return
-    setReport({
-      ...report,
-      surveyChecklist: report.surveyChecklist?.map(item =>
-        item.id === taskId ? { ...item, completed: !item.completed } : item
-      ),
-    })
+
+    // Optimistic update
+    const updatedChecklist = report.surveyChecklist?.map(item =>
+      item.id === taskId ? { ...item, completed: !currentStatus } : item
+    )
+    setReport({ ...report, surveyChecklist: updatedChecklist })
+
+    try {
+      const response = await fetch(`/api/v1/reports/${report.id}/checklist`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          taskId,
+          task,
+          completed: !currentStatus,
+        }),
+      })
+
+      if (!response.ok) throw new Error('Failed to update checklist')
+    } catch (error) {
+      console.error('Checklist update failed:', error)
+      // Revert optimistic update
+      const revertedChecklist = report.surveyChecklist?.map(item =>
+        item.id === taskId ? { ...item, completed: currentStatus } : item
+      )
+      setReport({ ...report, surveyChecklist: revertedChecklist })
+      alert('Failed to update checklist item. Please try again.')
+    }
   }
 
   const getScoreColor = (score: number) => {
@@ -332,17 +331,17 @@ export default function ReportDetailPage() {
         </div>
 
         {/* AI Summary Section */}
-        {aiReport && (
+        {report.aiSummary && (
           <div className="bg-white rounded-lg border border-gray-200 p-6 mb-6">
             <h2 className="text-lg font-semibold text-gray-900 mb-4">AI Analysis</h2>
             <div className="mb-4">
               <h3 className="font-medium text-gray-900 mb-2">Executive Summary</h3>
-              <p className="text-gray-700">{aiReport.executiveSummary}</p>
+              <p className="text-gray-700">{report.aiSummary.executiveSummary}</p>
             </div>
             <div className="mb-4">
               <h3 className="font-medium text-green-700 mb-2">Opportunities</h3>
               <ul className="list-disc list-inside text-green-700 space-y-1">
-                {aiReport.opportunities.map((opportunity, idx) => (
+                {report.aiSummary.opportunities.map((opportunity: string, idx: number) => (
                   <li key={idx}>{opportunity}</li>
                 ))}
               </ul>
@@ -350,16 +349,16 @@ export default function ReportDetailPage() {
             <div className="mb-4">
               <h3 className="font-medium text-red-700 mb-2">Risks</h3>
               <ul className="list-disc list-inside text-red-700 space-y-1">
-                {aiReport.risks.map((risk, idx) => (
+                {report.aiSummary.risks.map((risk: string, idx: number) => (
                   <li key={idx}>{risk}</li>
                 ))}
               </ul>
             </div>
             <div className="bg-indigo-600 text-white p-4 rounded-lg mb-4">
               <h3 className="font-medium mb-2">Recommendation</h3>
-              <p>{aiReport.recommendation}</p>
+              <p>{report.aiSummary.recommendation}</p>
             </div>
-            <p className="text-xs text-gray-500">{aiReport.disclaimer}</p>
+            <p className="text-xs text-gray-500">{report.aiSummary.disclaimer}</p>
           </div>
         )}
 
@@ -373,7 +372,7 @@ export default function ReportDetailPage() {
                   <input
                     type="checkbox"
                     checked={item.completed}
-                    onChange={() => handleChecklistToggle(item.id)}
+                    onChange={() => handleChecklistToggle(item.id, item.completed, item.task)}
                     className="mt-1 w-5 h-5 text-indigo-600 rounded"
                   />
                   <div>

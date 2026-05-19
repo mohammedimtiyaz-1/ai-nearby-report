@@ -22,6 +22,7 @@ export async function GET(
       where: { id },
       include: {
         scoreCard: true,
+        aiSummary: true,
         pois: true,
         surveyChecklist: true,
       },

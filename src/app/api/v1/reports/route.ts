@@ -127,6 +127,40 @@ export async function POST(request: NextRequest) {
       financialData: scoringInput.financialData,
     })
 
+    // Store AI summary in database
+    await prisma.aISummary.create({
+      data: {
+        reportId: report.id,
+        executiveSummary: aiReport.executiveSummary,
+        opportunities: aiReport.opportunities,
+        risks: aiReport.risks,
+        recommendation: aiReport.recommendation,
+        disclaimer: aiReport.disclaimer,
+        modelName: 'gpt-4o-mini',
+      },
+    })
+
+    // Create default survey checklist tasks
+    const defaultTasks = [
+      'Visit at different times of day',
+      'Count pedestrian movement manually',
+      'Observe competitor crowd',
+      'Check parking availability',
+      'Check visibility from street',
+    ]
+
+    await Promise.all(
+      defaultTasks.map(task =>
+        prisma.surveyChecklist.create({
+          data: {
+            reportId: report.id,
+            task,
+            completed: false,
+          },
+        })
+      )
+    )
+
     // Update report with final status
     const updatedReport = await prisma.report.update({
       where: { id: report.id },
@@ -134,13 +168,15 @@ export async function POST(request: NextRequest) {
         status: scores.confidence > 50 ? 'COMPLETED' : 'COMPLETED_WITH_WARNINGS',
         confidence: scores.confidence,
       },
+      include: {
+        scoreCard: true,
+        aiSummary: true,
+        pois: true,
+        surveyChecklist: true,
+      },
     })
 
-    return NextResponse.json({
-      ...updatedReport,
-      scores,
-      aiReport,
-    }, { status: 201 })
+    return NextResponse.json(updatedReport, { status: 201 })
   } catch (error) {
     console.error('Error creating report:', error)
     return NextResponse.json(
